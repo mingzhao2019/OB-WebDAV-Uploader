@@ -1,0 +1,10 @@
+{
+  "id": "webdav-uploader",
+  "name": "WebDAV Uploader",
+  "version": "1.0.0",
+  "minAppVersion": "0.12.0",
+  "description": "A plugin to upload documents to a WebDAV server.",
+  "author": "Zhao Ming",
+  "authorUrl": "https://blog.zhaoming.org/",
+  "isDesktopOnly": false
+}
