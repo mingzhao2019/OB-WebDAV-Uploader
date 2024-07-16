@@ -49,3 +49,4 @@ This plugin is licensed under the MIT License.
 ### Update in versions
 - Version 1.0.0: First commit.
 - Version 1.0.1: Enables automatic replacement of internal links while maintaining local formatting.
+- Version 1.0.2: Fixed the logic for mapping internal and external links.

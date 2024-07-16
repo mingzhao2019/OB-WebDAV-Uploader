@@ -93,19 +93,52 @@ class WebDAVUploader extends Plugin {
     }
 
     findInternalLinks(content) {
-        const regex = /\[\[([^\]]+)\]\]/g;
-        return [...content.matchAll(regex)].map(match => match[1]);
+        const codeBlockRegex = /```[\s\S]*?```/g;
+        const inlineCodeRegex = /`[^`\n]+`/g;
+        
+        // 移除所有代码块和内联代码
+        let cleanContent = content
+            .replace(codeBlockRegex, '')
+            .replace(inlineCodeRegex, '');
+
+        const regex = /\[\[([^\|\]]+)(\|[^\]]+)?\]\]/g;
+        return [...cleanContent.matchAll(regex)].map(match => ({
+            full: match[0],
+            link: match[1],
+            alias: match[2] ? match[2].slice(1) : null
+        }));
     }
 
     replaceInternalLinks(content, prefix) {
-        return content.replace(/\[\[([^\]]+)\]\]/g, (match, p1) => {
-            return `[${p1}](${prefix}${encodeURIComponent(p1)}.md)`;
-        });
+        const codeBlockRegex = /(```[\s\S]*?```)/g;
+        const inlineCodeRegex = /(`[^`\n]+`)/g;
+
+        // 分割内容，保护代码块和内联代码
+        let parts = content.split(codeBlockRegex);
+        parts = parts.flatMap(part => part.split(inlineCodeRegex));
+
+        // 只替换非代码部分的内部链接
+        for (let i = 0; i < parts.length; i += 2) {
+            parts[i] = parts[i].replace(/\[\[([^\|\]]+)(\|[^\]]+)?\]\]/g, (match, link, alias) => {
+                const encodedLink = encodeURIComponent(link.trim()) + '.md';
+                const displayText = alias ? alias.slice(1) : link;
+                return `[${displayText}](${prefix}${encodedLink})`;
+            });
+        }
+
+        // 重新组合内容
+        return parts.join('');
     }
 
     revertInternalLinks(content) {
-        return content.replace(/\[([^\]]+)\]\([^\)]+\)/g, (match, p1) => {
-            return `[[${p1}]]`;
+        return content.replace(/\[([^\]]+)\]\(([^)]+\.md)\)/g, (match, text, url) => {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                const decodedUrl = decodeURIComponent(url.replace(/\.md$/, ''));
+                const linkParts = decodedUrl.split('/');
+                const linkText = linkParts[linkParts.length - 1];
+                return text === linkText ? `[[${text}]]` : `[[${linkText}|${text}]]`;
+            }
+            return match; // 如果不是我们替换的链接，保持原样
         });
     }
 
@@ -116,7 +149,7 @@ class WebDAVUploader extends Plugin {
         const p = container.createEl('p', { text: this.getLocalizedMessage('UPLOAD_LINKED_FILES', fileName) });
         const ul = container.createEl('ul');
         internalLinks.forEach(link => {
-            ul.createEl('li', { text: `[[${link}]]` });
+            ul.createEl('li', { text: link.full });
         });
 
         notice.noticeEl.style.width = '350px';
@@ -212,8 +245,8 @@ class WebDAVUploader extends Plugin {
                 zh: '已上传文件中的内部链接已替换'
             },
             UPLOAD_LINKED_FILES: {
-                en: 'File ${args[0]} has been uploaded successfully. Please upload the following linked files to the same path:',
-                zh: '文件 ${args[0]} 已成功上传。请将以下链接的文件上传到相同路径：'
+                en: `File ${args[0]} has been uploaded successfully. Please upload the following linked files to the same path:`,
+                zh: `文件 ${args[0]} 已成功上传。请将以下链接的文件上传到相同路径：`
             }
         };
 
