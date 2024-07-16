@@ -7,22 +7,39 @@ class WebDAVUploader extends Plugin {
         this.addRibbonIcon('upload-cloud', 'Upload to WebDAV', async () => {
             const activeFile = this.app.workspace.getActiveFile();
             if (activeFile) {
-                const fileContent = await this.app.vault.read(activeFile);
-                const selectedServer = await this.chooseWebDAVServer();
-                if (selectedServer) {
-                    try {
-                        const fileUrl = await this.uploadToWebDAV(activeFile.name, fileContent, selectedServer);
-                        if (navigator.clipboard) {
-                            await navigator.clipboard.writeText(fileUrl);
-                            new Notice(this.getLocalizedMessage('UPLOAD_SUCCESS'));
-                        } else {
-                            new Notice(this.getLocalizedMessage('UPLOAD_SUCCESS'));
+                try {
+                    let fileContent = await this.app.vault.read(activeFile);
+                    const selectedServer = await this.chooseWebDAVServer();
+                    if (selectedServer) {
+                        const internalLinks = this.findInternalLinks(fileContent);
+                        if (internalLinks.length > 0) {
+                            fileContent = this.replaceInternalLinks(fileContent, selectedServer.customUrlPrefix);
                         }
-                    } catch (error) {
-                        new Notice(this.getLocalizedMessage('UPLOAD_FAILURE', error.message));
+
+                        try {
+                            const fileUrl = await this.uploadToWebDAV(activeFile.name, fileContent, selectedServer);
+                            if (navigator.clipboard) {
+                                await navigator.clipboard.writeText(fileUrl);
+                                new Notice(this.getLocalizedMessage('UPLOAD_SUCCESS'));
+                            } else {
+                                new Notice(this.getLocalizedMessage('UPLOAD_SUCCESS'));
+                            }
+
+                            // Revert the changes in the local file
+                            if (internalLinks.length > 0) {
+                                await this.app.vault.modify(activeFile, this.revertInternalLinks(fileContent));
+                                this.showUploadedLinksNotice(activeFile.name, internalLinks);
+                            }
+                        } catch (error) {
+                            console.error('Upload failed:', error);
+                            new Notice(this.getLocalizedMessage('UPLOAD_FAILURE', error.message));
+                        }
+                    } else {
+                        new Notice(this.getLocalizedMessage('NO_SERVER_SELECTED'));
                     }
-                } else {
-                    new Notice(this.getLocalizedMessage('NO_SERVER_SELECTED'));
+                } catch (error) {
+                    console.error('Error reading file:', error);
+                    new Notice(this.getLocalizedMessage('FILE_READ_ERROR', error.message));
                 }
             } else {
                 new Notice(this.getLocalizedMessage('NO_ACTIVE_FILE'));
@@ -72,11 +89,6 @@ class WebDAVUploader extends Plugin {
             throw new Error(response.statusText);
         }
 
-        const internalLinks = this.findInternalLinks(content);
-        if (internalLinks.length > 0) {
-            this.showInternalLinksNotice(internalLinks);
-        }
-
         return customUrlPrefix + encodeURIComponent(filename);
     }
 
@@ -85,28 +97,31 @@ class WebDAVUploader extends Plugin {
         return [...content.matchAll(regex)].map(match => match[1]);
     }
 
-    showInternalLinksNotice(internalLinks) {
+    replaceInternalLinks(content, prefix) {
+        return content.replace(/\[\[([^\]]+)\]\]/g, (match, p1) => {
+            return `[${p1}](${prefix}${encodeURIComponent(p1)}.md)`;
+        });
+    }
+
+    revertInternalLinks(content) {
+        return content.replace(/\[([^\]]+)\]\([^\)]+\)/g, (match, p1) => {
+            return `[[${p1}]]`;
+        });
+    }
+
+    showUploadedLinksNotice(fileName, internalLinks) {
         const notice = new Notice('', 15000); // 15 seconds duration
         const container = notice.noticeEl.createDiv({ cls: 'internal-links-notice' });
-        container.createEl('h4', { text: this.getLocalizedMessage('INTERNAL_LINKS_FOUND') });
+        container.createEl('h4', { text: this.getLocalizedMessage('LINKS_REPLACED') });
+        const p = container.createEl('p', { text: this.getLocalizedMessage('UPLOAD_LINKED_FILES', fileName) });
         const ul = container.createEl('ul');
         internalLinks.forEach(link => {
             ul.createEl('li', { text: `[[${link}]]` });
         });
-        container.createEl('p', { text: this.getLocalizedMessage('CONSIDER_UPLOADING') });
 
-        notice.noticeEl.style.top = '50%';
-        notice.noticeEl.style.left = '50%';
-        notice.noticeEl.style.transform = 'translate(-50%, -50%)';
         notice.noticeEl.style.width = '350px';
         notice.noticeEl.style.maxHeight = '250px';
         notice.noticeEl.style.overflow = 'auto';
-        notice.noticeEl.style.backgroundColor = 'var(--background-primary)';
-        notice.noticeEl.style.color = 'var(--text-normal)';
-        notice.noticeEl.style.border = '2px solid var(--interactive-accent)';
-        notice.noticeEl.style.borderRadius = '10px';
-        notice.noticeEl.style.padding = '15px';
-        notice.noticeEl.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
     }
 
     loadStyles() {
@@ -187,6 +202,18 @@ class WebDAVUploader extends Plugin {
             CONSIDER_UPLOADING: {
                 en: 'Consider uploading these notes and updating the links in the uploaded file.',
                 zh: '考虑上传这些笔记并更新已上传文件中的链接。'
+            },
+            FILE_READ_ERROR: {
+                en: `Failed to read file: ${args[0]}`,
+                zh: `读取文件失败：${args[0]}`
+            },
+            LINKS_REPLACED: {
+                en: 'Internal links replaced in uploaded file',
+                zh: '已上传文件中的内部链接已替换'
+            },
+            UPLOAD_LINKED_FILES: {
+                en: 'File ${args[0]} has been uploaded successfully. Please upload the following linked files to the same path:',
+                zh: '文件 ${args[0]} 已成功上传。请将以下链接的文件上传到相同路径：'
             }
         };
 

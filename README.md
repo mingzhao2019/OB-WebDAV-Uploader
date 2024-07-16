@@ -21,6 +21,7 @@ This plugin allows you to upload documents from Obsidian to a WebDAV server with
 - Works on both desktop and mobile versions of Obsidian.
 - Support multiple WebDAV servers.
 - Add warnings and suggestions when internal comments are found in the uploaded file.
+- Automatically replaces internal links in uploaded files with LINK mode, while keeping the internal link format of local files unchanged. When prompted, upload the associated file to the same directory to realize the jump.
 
 ### Installation
 
@@ -46,4 +47,5 @@ This plugin allows you to upload documents from Obsidian to a WebDAV server with
 This plugin is licensed under the MIT License.
 
 ### Update in versions
-- Version 1.0.0: First Commit.
+- Version 1.0.0: First commit.
+- Version 1.0.1: Enables automatic replacement of internal links while maintaining local formatting.
