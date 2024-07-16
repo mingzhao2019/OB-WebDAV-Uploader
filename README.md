@@ -6,7 +6,7 @@
 
 <br>
 
-<p align="center"><img align="center" src="https://github.com/mingzhao2019/OB-webdav-uploader/blob/f8cb2846952867b11acae60afd1a93e216e18751/demo.gif" alt="highlight" /></p>
+<p align="center"><img align="center" src="https://github.com/mingzhao2019/OB-WebDAV-Uploader/blob/b226a0e62aa5a516e8d2c92fac4d456b9d71e1ca/demo.gif" alt="highlight" /></p>
 
 
 ## Description
